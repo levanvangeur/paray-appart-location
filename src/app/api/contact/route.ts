@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import nodemailer from 'nodemailer'
+import { Resend } from 'resend'
 import { getApartmentById, getSettings } from '@/lib/data'
 
 export async function POST(req: NextRequest) {
@@ -12,84 +12,63 @@ export async function POST(req: NextRequest) {
 
   const settings = getSettings()
   const apartment = apartmentId ? getApartmentById(apartmentId) : null
+  const contactEmail = process.env.CONTACT_EMAIL || settings.contactEmail
 
   const htmlContent = `
-    <div style="font-family: Georgia, serif; max-width: 600px; margin: 0 auto; background: #0D0D0D; color: #fff; padding: 40px;">
-      <h2 style="color: #C9A84C; font-size: 24px; margin-bottom: 8px;">Nouvelle demande de réservation</h2>
-      <p style="color: #999; font-size: 12px; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 32px;">
-        Nos Appartements à Paray le Monial
-      </p>
-
+    <div style="font-family: Georgia, serif; max-width: 600px; margin: 0 auto; background: #0D0D0D; color: #fff; padding: 40px; border: 1px solid #2A2A2A;">
+      <div style="text-align:center; margin-bottom: 32px;">
+        <div style="color: #C9A84C; font-size: 28px; margin-bottom: 8px;">✦</div>
+        <h2 style="color: #C9A84C; font-size: 22px; margin: 0 0 4px;">Nouvelle demande de réservation</h2>
+        <p style="color: #666; font-size: 11px; text-transform: uppercase; letter-spacing: 3px; margin: 0;">
+          Nos Appartements · Paray le Monial
+        </p>
+      </div>
       <table style="width: 100%; border-collapse: collapse;">
         <tr>
-          <td style="padding: 12px 0; border-bottom: 1px solid #2A2A2A; color: #C9A84C; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; width: 140px;">Nom</td>
+          <td style="padding: 12px 0; border-bottom: 1px solid #2A2A2A; color: #C9A84C; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; width: 130px;">Nom</td>
           <td style="padding: 12px 0; border-bottom: 1px solid #2A2A2A; color: #fff;">${name}</td>
         </tr>
         <tr>
-          <td style="padding: 12px 0; border-bottom: 1px solid #2A2A2A; color: #C9A84C; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Email</td>
-          <td style="padding: 12px 0; border-bottom: 1px solid #2A2A2A; color: #fff;">${email}</td>
+          <td style="padding: 12px 0; border-bottom: 1px solid #2A2A2A; color: #C9A84C; font-size: 11px; text-transform: uppercase; letter-spacing: 1px;">Email</td>
+          <td style="padding: 12px 0; border-bottom: 1px solid #2A2A2A; color: #fff;"><a href="mailto:${email}" style="color:#C9A84C;">${email}</a></td>
         </tr>
-        ${phone ? `<tr>
-          <td style="padding: 12px 0; border-bottom: 1px solid #2A2A2A; color: #C9A84C; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Téléphone</td>
-          <td style="padding: 12px 0; border-bottom: 1px solid #2A2A2A; color: #fff;">${phone}</td>
-        </tr>` : ''}
-        ${apartment ? `<tr>
-          <td style="padding: 12px 0; border-bottom: 1px solid #2A2A2A; color: #C9A84C; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Appartement</td>
-          <td style="padding: 12px 0; border-bottom: 1px solid #2A2A2A; color: #fff;">${apartment.name}</td>
-        </tr>` : ''}
-        ${checkIn ? `<tr>
-          <td style="padding: 12px 0; border-bottom: 1px solid #2A2A2A; color: #C9A84C; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Arrivée</td>
-          <td style="padding: 12px 0; border-bottom: 1px solid #2A2A2A; color: #fff;">${checkIn}</td>
-        </tr>` : ''}
-        ${checkOut ? `<tr>
-          <td style="padding: 12px 0; border-bottom: 1px solid #2A2A2A; color: #C9A84C; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Départ</td>
-          <td style="padding: 12px 0; border-bottom: 1px solid #2A2A2A; color: #fff;">${checkOut}</td>
-        </tr>` : ''}
+        ${phone ? `<tr><td style="padding: 12px 0; border-bottom: 1px solid #2A2A2A; color: #C9A84C; font-size: 11px; text-transform: uppercase; letter-spacing: 1px;">Téléphone</td><td style="padding: 12px 0; border-bottom: 1px solid #2A2A2A; color: #fff;">${phone}</td></tr>` : ''}
+        ${apartment ? `<tr><td style="padding: 12px 0; border-bottom: 1px solid #2A2A2A; color: #C9A84C; font-size: 11px; text-transform: uppercase; letter-spacing: 1px;">Appartement</td><td style="padding: 12px 0; border-bottom: 1px solid #2A2A2A; color: #fff; font-weight: bold;">${apartment.name}</td></tr>` : ''}
+        ${checkIn ? `<tr><td style="padding: 12px 0; border-bottom: 1px solid #2A2A2A; color: #C9A84C; font-size: 11px; text-transform: uppercase; letter-spacing: 1px;">Arrivée</td><td style="padding: 12px 0; border-bottom: 1px solid #2A2A2A; color: #fff;">${checkIn}</td></tr>` : ''}
+        ${checkOut ? `<tr><td style="padding: 12px 0; border-bottom: 1px solid #2A2A2A; color: #C9A84C; font-size: 11px; text-transform: uppercase; letter-spacing: 1px;">Départ</td><td style="padding: 12px 0; border-bottom: 1px solid #2A2A2A; color: #fff;">${checkOut}</td></tr>` : ''}
         <tr>
-          <td style="padding: 12px 0; border-bottom: 1px solid #2A2A2A; color: #C9A84C; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Voyageurs</td>
+          <td style="padding: 12px 0; border-bottom: 1px solid #2A2A2A; color: #C9A84C; font-size: 11px; text-transform: uppercase; letter-spacing: 1px;">Voyageurs</td>
           <td style="padding: 12px 0; border-bottom: 1px solid #2A2A2A; color: #fff;">${guests}</td>
         </tr>
-        ${message ? `<tr>
-          <td style="padding: 12px 0; color: #C9A84C; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; vertical-align: top;">Message</td>
-          <td style="padding: 12px 0; color: #fff;">${message}</td>
-        </tr>` : ''}
+        ${message ? `<tr><td style="padding: 12px 0; color: #C9A84C; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; vertical-align: top; padding-top: 16px;">Message</td><td style="padding: 12px 0; color: #ccc; padding-top: 16px;">${message}</td></tr>` : ''}
       </table>
-
-      <p style="margin-top: 32px; color: #666; font-size: 12px;">
-        Répondez directement à cet email pour contacter ${name}.
-      </p>
+      <div style="margin-top: 32px; padding-top: 24px; border-top: 1px solid #2A2A2A; text-align: center;">
+        <a href="mailto:${email}" style="display:inline-block; background:#C9A84C; color:#0D0D0D; padding: 12px 28px; text-decoration:none; font-size:12px; letter-spacing:2px; text-transform:uppercase; font-weight:bold;">
+          Répondre à ${name}
+        </a>
+      </div>
     </div>
   `
 
-  // If SMTP is not configured, just log and return success
-  const smtpUser = process.env.SMTP_USER
-  const smtpPass = process.env.SMTP_PASS
-  const contactEmail = process.env.CONTACT_EMAIL || settings.contactEmail
+  const resendKey = process.env.RESEND_API_KEY
 
-  if (!smtpUser || !smtpPass) {
-    console.log('Contact form submission (SMTP not configured):', { name, email, apartment: apartment?.name, checkIn, checkOut, guests, message })
+  if (!resendKey) {
+    console.log('📬 Formulaire reçu (RESEND_API_KEY manquante) :', { name, email, apartment: apartment?.name })
     return NextResponse.json({ ok: true })
   }
 
   try {
-    const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST || 'smtp.gmail.com',
-      port: parseInt(process.env.SMTP_PORT || '587'),
-      secure: false,
-      auth: { user: smtpUser, pass: smtpPass },
-    })
-
-    await transporter.sendMail({
-      from: `"Site de Réservation" <${smtpUser}>`,
-      to: contactEmail,
+    const resend = new Resend(resendKey)
+    await resend.emails.send({
+      from: 'Site Réservation <onboarding@resend.dev>',
+      to: [contactEmail],
       replyTo: email,
-      subject: `Demande de réservation — ${apartment ? apartment.name : 'Appartement non précisé'} — ${name}`,
+      subject: `Demande de réservation — ${apartment ? apartment.name : 'Non précisé'} — ${name}`,
       html: htmlContent,
     })
-
     return NextResponse.json({ ok: true })
   } catch (err) {
-    console.error('Email send error:', err)
-    return NextResponse.json({ error: 'Impossible d\'envoyer le message.' }, { status: 500 })
+    console.error('Resend error:', err)
+    return NextResponse.json({ error: "Impossible d'envoyer le message." }, { status: 500 })
   }
 }

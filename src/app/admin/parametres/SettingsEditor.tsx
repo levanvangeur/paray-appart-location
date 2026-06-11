@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useCallback } from 'react'
-import { useDropzone } from 'react-dropzone'
+import { useState, useRef, useEffect } from 'react'
 import type { SiteSettings } from '@/lib/types'
+import { uploadFile } from '@/lib/uploadFile'
 
 interface Props {
   settings: SiteSettings
@@ -11,8 +11,42 @@ interface Props {
 export default function SettingsEditor({ settings }: Props) {
   const [form, setForm] = useState<SiteSettings>({ ...settings, heroImages: settings.heroImages ?? [] })
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [heroStatus, setHeroStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState('')
+  const [isDragOver, setIsDragOver] = useState(false)
+  const formRef = useRef(form)
+  const heroFileInputRef = useRef<HTMLInputElement>(null)
+  useEffect(() => { formRef.current = form }, [form])
+
+  // Bloquer le navigateur d'ouvrir les fichiers glissés hors de la zone
+  useEffect(() => {
+    const prevent = (e: DragEvent) => { e.preventDefault(); e.stopPropagation() }
+    document.addEventListener('dragover', prevent)
+    document.addEventListener('drop', prevent)
+    return () => {
+      document.removeEventListener('dragover', prevent)
+      document.removeEventListener('drop', prevent)
+    }
+  }, [])
+
+  const saveHeroImages = async (images: string[]) => {
+    setHeroStatus('saving')
+    const updated = { ...formRef.current, heroImages: images }
+    setForm(updated)
+    formRef.current = updated
+    try {
+      const res = await fetch('/api/admin/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated),
+      })
+      setHeroStatus(res.ok ? 'saved' : 'error')
+      if (res.ok) setTimeout(() => setHeroStatus('idle'), 2500)
+    } catch {
+      setHeroStatus('error')
+    }
+  }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -30,32 +64,42 @@ export default function SettingsEditor({ settings }: Props) {
     if (res.ok) setTimeout(() => setStatus('idle'), 2500)
   }
 
-  const onDropHero = useCallback(async (acceptedFiles: File[]) => {
+  const processHeroFiles = async (files: FileList | File[]) => {
+    const ACCEPTED = ['image/jpeg', 'image/png', 'image/webp']
+    const MAX = 10 * 1024 * 1024
+    const valid: File[] = []
+    const errors: string[] = []
+    for (const file of Array.from(files)) {
+      if (!ACCEPTED.includes(file.type)) { errors.push(`${file.name} : format non supporté`); continue }
+      if (file.size > MAX) { errors.push(`${file.name} : trop lourd (max 10 Mo)`); continue }
+      valid.push(file)
+    }
+    if (errors.length) { setUploadError(errors.join(' | ')); return }
     setUploading(true)
     setUploadError('')
-    for (const file of acceptedFiles) {
-      const fd = new FormData()
-      fd.append('file', file)
-      fd.append('type', 'hero')
-      const res = await fetch('/api/upload', { method: 'POST', body: fd })
-      const data = await res.json()
-      if (res.ok) {
-        setForm((prev) => ({ ...prev, heroImages: [...(prev.heroImages ?? []), data.filename] }))
-      } else {
-        setUploadError(data.error || 'Erreur upload')
+    const newImages = [...(formRef.current.heroImages ?? [])]
+    for (const file of valid) {
+      try {
+        const result = await uploadFile(file, 'hero')
+        if ('filename' in result) {
+          newImages.push(result.filename)
+        } else {
+          setUploadError(result.error)
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        setUploadError(`Erreur: ${msg}`)
       }
     }
     setUploading(false)
-  }, [])
-
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop: onDropHero,
-    accept: { 'image/*': ['.jpg', '.jpeg', '.png', '.webp'] },
-    maxSize: 10 * 1024 * 1024,
-  })
+    if (newImages.length > (formRef.current.heroImages ?? []).length) {
+      await saveHeroImages(newImages)
+    }
+  }
 
   const removeHeroImage = (filename: string) => {
-    setForm((prev) => ({ ...prev, heroImages: (prev.heroImages ?? []).filter((f) => f !== filename) }))
+    const newImages = (formRef.current.heroImages ?? []).filter((f) => f !== filename)
+    saveHeroImages(newImages)
   }
 
   const inputClass = "w-full bg-noir border border-noir-border text-white placeholder-gray-600 px-4 py-3 text-sm focus:outline-none focus:border-gold transition-colors"
@@ -73,6 +117,11 @@ export default function SettingsEditor({ settings }: Props) {
 
       {/* DIAPORAMA HERO */}
       <Section title="📷 Photos du diaporama (page d'accueil)">
+        <div className="text-xs mb-2">
+          {heroStatus === 'saving' && <span className="text-gold animate-pulse">Sauvegarde automatique...</span>}
+          {heroStatus === 'saved' && <span className="text-green-400">✓ Photos sauvegardées automatiquement</span>}
+          {heroStatus === 'error' && <span className="text-red-400">Erreur de sauvegarde</span>}
+        </div>
         <p className="text-gray-400 text-sm">
           Ces photos défilent en fondu sur la page d&apos;accueil. Ajoutez au moins 2 photos pour activer le diaporama.
         </p>
@@ -100,26 +149,51 @@ export default function SettingsEditor({ settings }: Props) {
           </div>
         )}
 
-        {/* Zone de dépôt */}
+        {/* Upload zone */}
+        <input
+          ref={heroFileInputRef}
+          type="file"
+          accept="image/jpeg,image/jpg,image/png,image/webp"
+          multiple
+          className="hidden"
+          onChange={(e) => { if (e.target.files?.length) { processHeroFiles(e.target.files); e.target.value = '' } }}
+        />
         <div
-          {...getRootProps()}
-          className={`border-2 border-dashed p-8 text-center cursor-pointer transition-colors ${
-            isDragActive ? 'border-gold bg-gold/5' : 'border-noir-border hover:border-gold/50'
+          className={`border-2 border-dashed p-10 text-center transition-colors ${
+            isDragOver ? 'border-gold bg-gold/5' : 'border-gold/40'
           }`}
+          onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragOver(true) }}
+          onDragLeave={() => setIsDragOver(false)}
+          onDrop={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragOver(false); if (e.dataTransfer.files?.length) processHeroFiles(e.dataTransfer.files) }}
         >
-          <input {...getInputProps()} />
-          <div className="text-gold text-3xl mb-3">↑</div>
-          <p className="text-gray-400 text-sm mb-1">
-            {isDragActive ? 'Déposez ici...' : 'Glissez vos photos ou cliquez pour sélectionner'}
+          <div className="text-gold text-4xl mb-4">📷</div>
+          <p className="text-white text-sm font-medium mb-3">
+            {isDragOver ? 'Déposez ici ↓' : 'Glissez vos photos ici ou cliquez le bouton'}
           </p>
-          <p className="text-gray-600 text-xs">JPG, PNG, WEBP · Max 10 Mo</p>
-          {uploading && <p className="text-gold text-xs mt-3 animate-pulse">Téléchargement en cours...</p>}
-          {uploadError && <p className="text-red-400 text-xs mt-3">{uploadError}</p>}
+          <button
+            type="button"
+            disabled={uploading}
+            onClick={() => heroFileInputRef.current?.click()}
+            className="btn-gold text-xs"
+          >
+            {uploading ? '⟳ Transfert en cours...' : '📁 Choisir des photos'}
+          </button>
+          <p className="text-gray-600 text-xs mt-4">JPG · PNG · WEBP · Max 10 Mo</p>
         </div>
 
-        <p className="text-gray-600 text-xs">
-          N&apos;oubliez pas de cliquer sur <strong className="text-gray-400">«&nbsp;Enregistrer&nbsp;»</strong> après avoir ajouté ou retiré des photos.
-        </p>
+        {uploadError && (
+          <div className="bg-red-900/30 border border-red-500/50 p-4 flex items-start gap-3">
+            <span className="text-red-400 text-lg flex-shrink-0">⚠</span>
+            <div>
+              <p className="text-red-300 text-sm font-medium">Erreur d&apos;upload</p>
+              <p className="text-red-400 text-xs mt-1">{uploadError}</p>
+              {uploadError.includes('Session') && (
+                <a href="/admin/login" className="text-gold text-xs underline mt-2 inline-block">→ Se reconnecter</a>
+              )}
+            </div>
+            <button onClick={() => setUploadError('')} className="ml-auto text-red-400/60 hover:text-red-400 text-lg">✕</button>
+          </div>
+        )}
       </Section>
 
       {/* HERO TEXTES */}

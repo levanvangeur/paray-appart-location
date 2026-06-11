@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { useDropzone } from 'react-dropzone'
 import type { Apartment } from '@/lib/types'
+import { uploadFile } from '@/lib/uploadFile'
 
 interface Props {
   apartment: Apartment
@@ -15,11 +16,27 @@ const AMENITIES_SUGGESTIONS = [
 ]
 
 export default function ApartmentEditor({ apartment }: Props) {
-  const [form, setForm] = useState<Apartment>({ ...apartment })
+  const [form, setForm] = useState<Apartment>({ icalUrls: {}, ...apartment })
   const [newAmenity, setNewAmenity] = useState('')
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState('')
+  const [photoStatus, setPhotoStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+
+  // Ref toujours à jour pour éviter les closures périmées
+  const formRef = useRef(form)
+  useEffect(() => { formRef.current = form }, [form])
+
+  // Bloquer le navigateur d'ouvrir les fichiers glissés hors de la zone
+  useEffect(() => {
+    const prevent = (e: DragEvent) => { e.preventDefault(); e.stopPropagation() }
+    document.addEventListener('dragover', prevent)
+    document.addEventListener('drop', prevent)
+    return () => {
+      document.removeEventListener('dragover', prevent)
+      document.removeEventListener('drop', prevent)
+    }
+  }, [])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target
@@ -45,36 +62,79 @@ export default function ApartmentEditor({ apartment }: Props) {
     setForm((prev) => ({ ...prev, amenities: prev.amenities.filter((a) => a !== amenity) }))
   }
 
-  const removeImage = (filename: string) => {
-    setForm((prev) => ({ ...prev, images: prev.images.filter((i) => i !== filename) }))
+  // Sauvegarde des photos immédiatement (sans passer par le bouton principal)
+  const savePhotos = async (images: string[]) => {
+    setPhotoStatus('saving')
+    try {
+      const res = await fetch('/api/admin/appartements', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...formRef.current, images }),
+      })
+      if (res.ok) {
+        setForm((prev) => ({ ...prev, images }))
+        formRef.current = { ...formRef.current, images }
+        setPhotoStatus('saved')
+        setTimeout(() => setPhotoStatus('idle'), 2500)
+      } else {
+        setPhotoStatus('error')
+      }
+    } catch {
+      setPhotoStatus('error')
+    }
+  }
+
+  const removeImage = async (filename: string) => {
+    const newImages = formRef.current.images.filter((i) => i !== filename)
+    await savePhotos(newImages)
   }
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
+    if (acceptedFiles.length === 0) return
     setUploading(true)
     setUploadError('')
 
+    const newImages = [...formRef.current.images]
+
     for (const file of acceptedFiles) {
-      const fd = new FormData()
-      fd.append('file', file)
-      fd.append('apartmentId', apartment.id)
-
-      const res = await fetch('/api/upload', { method: 'POST', body: fd })
-      const data = await res.json()
-
-      if (res.ok) {
-        setForm((prev) => ({ ...prev, images: [...prev.images, data.filename] }))
-      } else {
-        setUploadError(data.error || 'Erreur upload')
+      try {
+        const result = await uploadFile(file, 'appartement', apartment.id)
+        if ('filename' in result) {
+          newImages.push(result.filename)
+        } else {
+          const msg = result.error || 'Erreur inconnue'
+          if (msg.includes('autoris') || msg.includes('401')) {
+            setUploadError('Session expirée — veuillez vous déconnecter et vous reconnecter, puis réessayer.')
+          } else {
+            setUploadError(msg)
+          }
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        setUploadError(`Erreur réseau: ${msg}`)
       }
     }
 
     setUploading(false)
+
+    if (newImages.length > formRef.current.images.length) {
+      savePhotos(newImages)
+    }
   }, [apartment.id])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    accept: { 'image/*': ['.jpg', '.jpeg', '.png', '.webp'] },
+    onDropRejected: (files) => {
+      const reasons = files.map(f =>
+        f.errors.map(e => e.code === 'file-too-large' ? 'Fichier trop lourd (max 10 Mo)' :
+          e.code === 'file-invalid-type' ? 'Format non supporté (JPG, PNG, WEBP uniquement)' : e.message
+        ).join(', ')
+      ).join(' | ')
+      setUploadError(reasons || 'Fichier refusé.')
+    },
+    accept: { 'image/jpeg': ['.jpg', '.jpeg'], 'image/png': ['.png'], 'image/webp': ['.webp'] },
     maxSize: 10 * 1024 * 1024,
+    multiple: true,
   })
 
   const handleSave = async () => {
@@ -201,9 +261,54 @@ export default function ApartmentEditor({ apartment }: Props) {
         </div>
       </section>
 
+      {/* iCal / Calendriers */}
+      <section className="bg-noir-card border border-noir-border p-6">
+        <h2 className="font-serif text-xl text-white mb-2">Synchronisation calendriers</h2>
+        <p className="text-gray-500 text-xs mb-5">
+          Entrez les URLs iCal de vos annonces Airbnb et Booking.com pour bloquer automatiquement les dates réservées.
+          Sur Airbnb : Calendrier → Disponibilités → Exporter le calendrier. Sur Booking.com : Extranet → Calendrier → Synchroniser.
+        </p>
+        <div className="space-y-4">
+          <div>
+            <label className={labelClass}>URL iCal Airbnb</label>
+            <input
+              value={form.icalUrls?.airbnb || ''}
+              onChange={(e) => setForm((p) => ({ ...p, icalUrls: { ...p.icalUrls, airbnb: e.target.value } }))}
+              placeholder="https://www.airbnb.com/calendar/ical/..."
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label className={labelClass}>URL iCal Booking.com</label>
+            <input
+              value={form.icalUrls?.booking || ''}
+              onChange={(e) => setForm((p) => ({ ...p, icalUrls: { ...p.icalUrls, booking: e.target.value } }))}
+              placeholder="https://admin.booking.com/hotel/hoteladmin/ical.html?..."
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label className={labelClass}>URL iCal supplémentaire</label>
+            <input
+              value={form.icalUrls?.extra || ''}
+              onChange={(e) => setForm((p) => ({ ...p, icalUrls: { ...p.icalUrls, extra: e.target.value } }))}
+              placeholder="Autre plateforme..."
+              className={inputClass}
+            />
+          </div>
+        </div>
+      </section>
+
       {/* Images */}
       <section className="bg-noir-card border border-noir-border p-6">
-        <h2 className="font-serif text-xl text-white mb-6">Photos</h2>
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="font-serif text-xl text-white">Photos</h2>
+          <div className="text-xs">
+            {photoStatus === 'saving' && <span className="text-gold animate-pulse">Sauvegarde...</span>}
+            {photoStatus === 'saved' && <span className="text-green-400">✓ Photos sauvegardées</span>}
+            {photoStatus === 'error' && <span className="text-red-400">Erreur de sauvegarde</span>}
+          </div>
+        </div>
 
         {/* Current images */}
         {form.images.length > 0 && (
@@ -233,19 +338,36 @@ export default function ApartmentEditor({ apartment }: Props) {
         {/* Upload zone */}
         <div
           {...getRootProps()}
-          className={`border-2 border-dashed p-8 text-center cursor-pointer transition-colors ${
-            isDragActive ? 'border-gold bg-gold/5' : 'border-noir-border hover:border-gold/50'
+          className={`border-2 border-dashed p-10 text-center cursor-pointer transition-colors ${
+            isDragActive ? 'border-gold bg-gold/5' : 'border-gold/40 hover:border-gold hover:bg-gold/5'
           }`}
         >
           <input {...getInputProps()} />
-          <div className="text-gold text-3xl mb-3">↑</div>
-          <p className="text-gray-400 text-sm mb-1">
-            {isDragActive ? 'Déposez les photos ici...' : 'Glissez vos photos ici, ou cliquez pour sélectionner'}
+          <div className="text-gold text-4xl mb-4">📷</div>
+          <p className="text-white text-sm font-medium mb-3">
+            {isDragActive ? 'Déposez ici ↓' : 'Cliquez ici pour choisir vos photos'}
           </p>
-          <p className="text-gray-600 text-xs">JPG, PNG, WEBP · Max 10 Mo par fichier</p>
-          {uploading && <p className="text-gold text-xs mt-3">Téléchargement en cours...</p>}
-          {uploadError && <p className="text-red-400 text-xs mt-3">{uploadError}</p>}
+          <span className="btn-gold text-xs pointer-events-none inline-block">
+            {uploading ? '⟳ Transfert en cours...' : '📁 Choisir des photos'}
+          </span>
+          <p className="text-gray-600 text-xs mt-4">JPG · PNG · WEBP · Max 10 Mo · Sauvegarde automatique</p>
         </div>
+
+        {uploadError && (
+          <div className="mt-4 bg-red-900/30 border border-red-500/50 p-4 flex items-start gap-3">
+            <span className="text-red-400 text-lg flex-shrink-0">⚠</span>
+            <div>
+              <p className="text-red-300 text-sm font-medium">Erreur d&apos;upload</p>
+              <p className="text-red-400 text-xs mt-1">{uploadError}</p>
+              {uploadError.includes('Session') && (
+                <a href="/admin/login" className="text-gold text-xs underline mt-2 inline-block">
+                  → Se reconnecter
+                </a>
+              )}
+            </div>
+            <button onClick={() => setUploadError('')} className="ml-auto text-red-400/60 hover:text-red-400 text-lg">✕</button>
+          </div>
+        )}
       </section>
 
       {/* Save button */}

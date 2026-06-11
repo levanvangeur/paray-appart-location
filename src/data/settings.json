@@ -1,8 +1,8 @@
 {
-  "siteName": "Nos Appartements à Paray le Monial",
-  "siteTagline": "Votre séjour d'exception en Bourgogne",
-  "heroTitle": "Vivez l'Excellence",
-  "heroSubtitle": "6 appartements de standing à Paray le Monial, pour des séjours inoubliables en Bourgogne.",
+  "siteName": "Nos Appartements à Paraf",
+  "siteTagline": "Votre séjour d'exception à Paray le Monial",
+  "heroTitle": "Réservez votre prochain séjour",
+  "heroSubtitle": "Des appartements de standing à Paray le Monial, pour des séjours inoubliables.",
   "aboutTitle": "Une expérience unique",
   "aboutText": "Nous mettons à votre disposition 6 appartements soigneusement aménagés au cœur de Paray le Monial. Chaque logement a été pensé pour vous offrir tout le confort d'un hôtel avec la liberté d'un appartement. Que vous veniez pour découvrir le patrimoine de la ville, pour un séjour spirituel ou simplement pour vous ressourcer en Bourgogne, nous avons le logement parfait pour vous.",
   "contactEmail": "contact@paray-location.fr",
@@ -11,7 +11,9 @@
   "facebookUrl": "",
   "instagramUrl": "",
   "city": "Paray le Monial",
-  "region": "Bourgogne",
-  "metaDescription": "Appartements de standing à louer à Paray le Monial. Séjours courte durée, tout confort, idéalement situés au cœur de la Bourgogne.",
-  "heroImages": []
+  "region": "Saône-et-Loire",
+  "metaDescription": "Appartements de standing à louer à Paray le Monial. Séjours courte durée, tout confort.",
+  "heroImages": [
+    "hero-1781131839543.jpeg"
+  ]
 }

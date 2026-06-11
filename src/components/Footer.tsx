@@ -19,7 +19,7 @@ export default function Footer({ settings }: FooterProps) {
               <span className="text-gold">✦</span> Nos Appartements
             </h3>
             <p className="text-gray-400 text-sm leading-relaxed">
-              Des appartements de standing pour des séjours d&apos;exception à Paray le Monial, au cœur de la Bourgogne.
+              Des appartements de standing pour des séjours d&apos;exception à Paray le Monial.
             </p>
           </div>
 
@@ -89,12 +89,12 @@ export default function Footer({ settings }: FooterProps) {
             <span>✦</span><span>✦</span><span>✦</span>
           </div>
 
-          {/* Lien admin discret */}
+          {/* Lien admin */}
           <a
             href="/admin/login"
-            className="text-gray-700 text-xs hover:text-gold transition-colors tracking-widest uppercase"
+            className="flex items-center gap-2 text-gray-400 hover:text-gold transition-colors text-xs tracking-widest uppercase border border-gray-700 hover:border-gold px-3 py-2"
           >
-            ⚙ Espace admin
+            <span>⚙</span> Espace admin
           </a>
         </div>
       </div>

@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 
 export default function AdminLoginPage() {
   const router = useRouter()
@@ -75,9 +76,9 @@ export default function AdminLoginPage() {
         </div>
 
         <p className="text-center mt-8">
-          <a href="/" className="text-gray-500 text-xs hover:text-gold transition-colors tracking-widest uppercase">
+          <Link href="/" className="text-gray-500 text-xs hover:text-gold transition-colors tracking-widest uppercase">
             ← Retour au site
-          </a>
+          </Link>
         </p>
       </div>
     </div>

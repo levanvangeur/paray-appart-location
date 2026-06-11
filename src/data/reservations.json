@@ -1,0 +1,21 @@
+[
+  {
+    "id": "abfab0f3-ef6f-4e90-a22d-917851ab7b48",
+    "apartmentId": "1",
+    "apartmentName": "Le Clair-Obscur",
+    "guestName": "Ivan Dlv",
+    "guestEmail": "levanvangeur@gmail.com",
+    "guestPhone": "",
+    "checkIn": "2026-06-10",
+    "checkOut": "2026-06-12",
+    "nights": 2,
+    "guests": 1,
+    "totalPrice": 240,
+    "status": "pending",
+    "paymentMethod": "pending",
+    "invoiceNumber": "FAC-2026-0001",
+    "source": "direct",
+    "message": "",
+    "createdAt": "2026-06-10T21:53:33.315Z"
+  }
+]

@@ -13,6 +13,32 @@ export interface Apartment {
   amenities: string[]
   available: boolean
   featured: boolean
+  icalUrls?: {
+    airbnb?: string
+    booking?: string
+    extra?: string
+  }
+}
+
+export interface Reservation {
+  id: string
+  apartmentId: string
+  apartmentName: string
+  guestName: string
+  guestEmail: string
+  guestPhone: string
+  checkIn: string
+  checkOut: string
+  nights: number
+  guests: number
+  totalPrice: number
+  status: 'pending' | 'confirmed' | 'cancelled'
+  paymentMethod: 'stripe' | 'paypal' | 'pending'
+  paymentId?: string
+  invoiceNumber?: string
+  source: 'direct' | 'airbnb' | 'booking' | 'blocked'
+  message?: string
+  createdAt: string
 }
 
 export interface SiteSettings {

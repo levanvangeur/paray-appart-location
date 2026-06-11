@@ -1,6 +1,7 @@
 import { redirect, notFound } from 'next/navigation'
 import { getSessionFromCookies } from '@/lib/auth'
 import { getApartmentById } from '@/lib/data'
+import Link from 'next/link'
 import AdminNav from '../../AdminNav'
 import ApartmentEditor from './ApartmentEditor'
 
@@ -21,9 +22,9 @@ export default async function EditApartmentPage({ params }: Props) {
       <AdminNav />
       <main className="flex-1 p-8">
         <div className="mb-8">
-          <a href="/admin/appartements" className="text-gray-500 text-xs tracking-widest uppercase hover:text-gold transition-colors">
+          <Link href="/admin/appartements" className="text-gray-500 text-xs tracking-widest uppercase hover:text-gold transition-colors">
             ← Retour aux appartements
-          </a>
+          </Link>
           <h1 className="font-serif text-3xl text-white mt-3 mb-1">Modifier : {apartment.name}</h1>
         </div>
         <ApartmentEditor apartment={apartment} />

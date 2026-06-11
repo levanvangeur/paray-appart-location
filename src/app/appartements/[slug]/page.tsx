@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 import { notFound } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -8,11 +10,6 @@ import ContactForm from '@/components/ContactForm'
 
 interface Props {
   params: Promise<{ slug: string }>
-}
-
-export async function generateStaticParams() {
-  const apartments = getApartments()
-  return apartments.map((a) => ({ slug: a.slug }))
 }
 
 export async function generateMetadata({ params }: Props) {
@@ -172,9 +169,9 @@ export default async function ApartmentPage({ params }: Props) {
                 </div>
               </div>
 
-              <a href="#reserver" className="btn-gold w-full text-center block">
+              <Link href={`/reservation/${apartment.slug}`} className="btn-gold w-full text-center block">
                 Réserver cet appartement
-              </a>
+              </Link>
 
               <div className="mt-4 text-center">
                 <a href={`tel:${settings.contactPhone}`} className="text-gray-400 text-sm hover:text-gold transition-colors">
